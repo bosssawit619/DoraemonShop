@@ -1,0 +1,242 @@
+<?php
+/**
+ * OTP24HR Official PHP SDK (Full Version)
+ * สำหรับเชื่อมต่อบริการ OTP, Social, Games, Mail และ 2FA
+ * ------------------------------------------------------------------
+ */
+
+class OTP24HR
+{
+    private $api_key = "KEY-API";
+    private $endpoint_v1 = "https://otp24hr.com/api/v1";
+    private $endpoint_v2 = "https://otp24hr.com/api/v2";
+
+    public function __construct($key = null)
+    {
+        if ($key)
+            $this->api_key = $key;
+    }
+
+    private function connect($action, $data = [], $method = 'POST', $version = 'v1')
+    {
+        $base_url = ($version === 'v2') ? $this->endpoint_v2 : $this->endpoint_v1;
+        $url = $base_url . "?action=" . $action;
+        $data['keyapi'] = $this->api_key;
+
+        $ch = curl_init();
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+        } else {
+            $url .= "&" . http_build_query($data);
+        }
+
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return json_decode($response, true);
+    }
+
+    // ==========================================
+    // 1. กลุ่มตรวจสอบข้อมูลบัญชี (ACCOUNT)
+    // ==========================================
+
+    /**
+     * [POST] ตรวจสอบยอดเงินคงเหลือ
+     * Response: {"status":"success", "balance":"100.00 บาท"}
+     */
+    public function getBalance()
+    {
+        return $this->connect('balance');
+    }
+
+    // ==========================================
+    // 2. กลุ่มดึงรายการบริการ (GET SERVICES)
+    // ==========================================
+
+    /**
+     * [GET] ดึงรายการบริการ Social (ไลก์/ฟอล)
+     * Response: [{"type_code":"..", "name":"..", "price":"..", "min":"..", "max":".."}, ...]
+     */
+    public function getSocial($per = 0)
+    {
+        return $this->connect('getsocial', ['per' => $per], 'GET');
+    }
+
+    /**
+     * [GET] ดึงรายการเติมเกม (Games)
+     * Response: [{"type_code":"..", "name":"..", "price":".."}, ...]
+     */
+    public function getGames($per = 0)
+    {
+        return $this->connect('getgames', ['per' => $per], 'GET');
+    }
+
+    /**
+     * [GET] ดึงรายการบัตรเงินสด (Cashcard)
+     */
+    public function getCashcard($per = 0)
+    {
+        return $this->connect('getcashcard', ['per' => $per], 'GET');
+    }
+
+    /**
+     * [GET] ดึงรายการบริการ OTP
+     */
+    public function getOtpList($per = 0)
+    {
+        return $this->connect('getotp', ['per' => $per], 'GET');
+    }
+
+    /**
+     * [GET] ตรวจสอบ Log OTP ของเบอร์โทรศัพท์ (V2)
+     */
+    public function getLogOtp($phone)
+    {
+        return $this->connect('logotp', ['phone' => $phone], 'GET', 'v2');
+    }
+
+    /**
+     * [GET] ดึงรายการแอป/แพ็กเกจ (Apps)
+     * Alias: getApps()
+     */
+    public function getPack()
+    {
+        return $this->connect('getpack', [], 'GET');
+    }
+
+    public function getApps()
+    {
+        return $this->getPack();
+    }
+
+
+    // ==========================================
+    // 3. กลุ่มการสั่งซื้อ (PURCHASE)
+    // ==========================================
+
+    /**
+     * [POST] สั่งซื้อ OTP
+     * Parameters: $type (รหัสบริการ), $ct (รหัสประเทศ)
+        รหัสประเทศ
+        - Thailand| รหัส : 52
+        - USA| รหัส : 187
+        - United Kingdom| รหัส : 16
+        - Indonesia| รหัส : 6
+        - Vietnam| รหัส : 10
+        - Myanmar| รหัส : 5
+        - Ukraine| รหัส : 1
+        - Nigeria| รหัส : 19
+        - Turkey| รหัส : 62
+        - China| รหัส : 3
+        - Philippines| รหัส : 4
+        - Cambodia| รหัส : 24
+        - Laos| รหัส : 25
+        - Malaysia| รหัส : 7
+        - Egypt| รหัส : 21
+     * Response: {"status":"success", "number":"...", "order_id":"...", "msg":"..."}
+     */
+    public function buyOtp($type, $ct)
+    {
+        return $this->connect('buyotp', ['type' => $type, 'ct' => $ct]);
+    }
+
+
+    /**
+     * [POST] สั่งซื้อแพ็กเกจ/แอป
+     * Parameters: $type_code (รหัสสินค้า), $amount (จำนวน)
+     * Response: {"status":"success", "msg":"...", "details":"..."}
+     * Alias: buyApp()
+     */
+    public function buyPack($type_code, $amount)
+    {
+        return $this->connect('buypack', ['type_code' => $type_code, 'amount' => $amount]);
+    }
+
+    public function buyApp($type_code, $amount)
+    {
+        return $this->buyPack($type_code, $amount);
+    }
+
+    /**
+     * [POST] สั่งซื้อบริการ Social
+     * Parameters: $type_code, $amount, $link, $comments
+     */
+    public function buySocial($type_code, $amount, $link, $comments = "")
+    {
+        return $this->connect('buysocial', [
+            'type_code' => $type_code,
+            'amount' => $amount,
+            'link' => $link,
+            'comments' => $comments
+        ]);
+    }
+
+    /**
+     * [POST] สั่งซื้อ/เติมเกม (Game Topup)
+     * Parameters: $type_game, $type_code, $uid, $server (ถ้ามี)
+     */
+    public function buyGame($type_game, $type_code, $uid, $server = null)
+    {
+        $data = ['type_game' => $type_game, 'type_code' => $type_code, 'uid' => $uid];
+        if ($server)
+            $data['game_server'] = $server;
+        return $this->connect('buygame', $data);
+    }
+
+    // ==========================================
+    // 4. กลุ่มบริการพิเศษ V2 (MAIL & 2FA)
+    // ==========================================
+
+    /**
+     * [GET] (V2) อ่านอีเมล
+     * Response: {"status":"success", "data":[{"from":"..", "subject":"..", "date":".."}]}
+     */
+    public function openMail($mail)
+    {
+        return $this->connect('mail', ['mail' => $mail], 'GET', 'v2');
+    }
+
+    /**
+     * [GET] (V2) ดึงรหัส 2FA (6 หลัก)
+     * Response: {"status":"success", "code":"123456"}
+     */
+    public function get2FA($key)
+    {
+        return $this->connect('2fa', ['g' => $key], 'GET', 'v2');
+    }
+
+    // ==========================================
+    // 5. กลุ่มประวัติการทำรายการ (HISTORY LOGS)
+    // ==========================================
+
+    /**
+     * [POST] ประวัติการซื้อแพ็กเกจ (ระบุ order เพื่อค้นหาเฉพาะรายการได้ ค่าไม่ระบบค้นหาทั้งหมด )
+     * Response: [{"order":"..", "msg":"..", "price":"..", "time":".."}, ...]
+     */
+    public function logPack($order = null)
+    {
+        return $this->connect('logpack', $order ? ['order' => $order] : []);
+    }
+
+    /**
+     * [POST] ประวัติการซื้อโซเชียล  (ระบุ order เพื่อค้นหาเฉพาะรายการได้ ค่าไม่ระบบค้นหาทั้งหมด )
+
+     */
+    public function logSocial($order = null)
+    {
+        return $this->connect('logsocial', $order ? ['order' => $order] : []);
+    }
+
+    /**
+     * [POST] ประวัติการเติมเกม  (ระบุ order เพื่อค้นหาเฉพาะรายการได้ ค่าไม่ระบบค้นหาทั้งหมด )
+     */
+    public function logGame($order = null)
+    {
+        return $this->connect('loggame', $order ? ['order' => $order] : []);
+    }
+}
